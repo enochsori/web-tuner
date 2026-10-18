@@ -1,92 +1,142 @@
 class TonePlayer {
     private ctx: AudioContext | null = null;
-    private osc: OscillatorNode | null = null;
-    private gain: GainNode | null = null;
+    private primaryOsc: OscillatorNode | null = null;
+    private harmonicOsc: OscillatorNode | null = null;
+    private gainNode: GainNode | null = null;
+    private filterNode: AudioNode | null = null;
     private activeFreq: number | null = null;
   
-    private initContext() {
+    private async ensureContext(): Promise<AudioContext | null> {
       if (!this.ctx) {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.ctx = new AudioCtx();
       }
+  
       if (this.ctx.state === 'suspended') {
-        this.ctx.resume();
+        await this.ctx.resume();
       }
+  
+      return this.ctx;
     }
   
-    // 기준음 재생 또는 같은 음일 경우 토글 정지
-    playTone(freq: number): boolean {
-      this.initContext();
-      if (!this.ctx) return false;
+    async playTone(freq: number): Promise<boolean> {
+      const ctx = await this.ensureContext();
+      if (!ctx) return false;
   
-      // 이미 같은 주파수가 재생 중이면 정지
-      if (this.osc && this.activeFreq === freq) {
+      // 이미 같은 주파수가 재생 중이면 정지 (토글)
+      if (this.primaryOsc && this.activeFreq === freq) {
         this.stop();
         return false;
       }
   
-      // 다른 음이 울리고 있었다면 즉시 중단 후 새 음 재생
       this.stopImmediate();
   
-      const ctx = this.ctx;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const now = ctx.currentTime;
   
-      // 악기 기준음에 어울리는 부드럽고 풍부한 삼각파(Triangle) 사용
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      // 1. 메인 톱니파 (날카로운 기본 피치감)
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(freq, now);
   
-      // 부드러운 페이드 인 (50ms)
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.05);
+      // 2. 1옥타브 위 배음 (피치 윤곽 강조)
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(freq * 2, now);
   
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      const harmonicGain = ctx.createGain();
+      harmonicGain.gain.setValueAtTime(0.35, now);
+      osc2.connect(harmonicGain);
   
-      osc.start();
+      // 3. 브라이트 필터 (3.2kHz 로우패스)
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3200, now);
+      filter.Q.setValueAtTime(1.5, now);
   
-      this.osc = osc;
-      this.gain = gain;
+      // 4. 마스터 게인
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(0.0001, now);
+      masterGain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+  
+      // 오디오 그래프 라우팅
+      osc1.connect(filter);
+      harmonicGain.connect(filter);
+      filter.connect(masterGain);
+      masterGain.connect(ctx.destination);
+  
+      osc1.start(now);
+      osc2.start(now);
+  
+      this.primaryOsc = osc1;
+      this.harmonicOsc = osc2;
+      this.filterNode = filter;
+      this.gainNode = masterGain;
       this.activeFreq = freq;
+  
       return true;
     }
   
-    // 부드러운 정지 (Fade-out)
     stop() {
-      if (this.osc && this.gain && this.ctx) {
+      if (this.primaryOsc && this.gainNode && this.ctx) {
         const ctx = this.ctx;
-        const prevOsc = this.osc;
-        const prevGain = this.gain;
+        const osc1 = this.primaryOsc;
+        const osc2 = this.harmonicOsc;
+        const gain = this.gainNode;
+        const filter = this.filterNode;
+        const now = ctx.currentTime;
   
-        prevGain.gain.setValueAtTime(prevGain.gain.value, ctx.currentTime);
-        prevGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
   
         setTimeout(() => {
           try {
-            prevOsc.stop();
-            prevOsc.disconnect();
-            prevGain.disconnect();
+            osc1.stop();
+            osc1.disconnect();
+            if (osc2) {
+              osc2.stop();
+              osc2.disconnect();
+            }
+            if (filter) {
+              filter.disconnect();
+            }
+            gain.disconnect();
           } catch {
-            // 이미 정지된 경우 무시
+            // ignore
           }
-        }, 90);
+        }, 70);
   
-        this.osc = null;
-        this.gain = null;
+        this.primaryOsc = null;
+        this.harmonicOsc = null;
+        this.filterNode = null;
+        this.gainNode = null;
         this.activeFreq = null;
       }
     }
   
     private stopImmediate() {
-      if (this.osc) {
+      if (this.primaryOsc) {
         try {
-          this.osc.stop();
-          this.osc.disconnect();
+          this.primaryOsc.stop();
+          this.primaryOsc.disconnect();
+          if (this.harmonicOsc) {
+            this.harmonicOsc.stop();
+            this.harmonicOsc.disconnect();
+          }
+          if (this.filterNode) {
+            this.filterNode.disconnect();
+          }
+          if (this.gainNode) {
+            this.gainNode.disconnect();
+          }
         } catch {
-          // 무시
+          // ignore
         }
-        this.osc = null;
-        this.gain = null;
+        this.primaryOsc = null;
+        this.harmonicOsc = null;
+        this.filterNode = null;
+        this.gainNode = null;
         this.activeFreq = null;
       }
     }
