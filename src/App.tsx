@@ -17,7 +17,7 @@ export default function App() {
   useAudioTuner(handlePitchUpdate);
 
   return (
-    <div className="flex flex-col items-center justify-between min-h-screen bg-[#0c1017] text-zinc-100 p-4 select-none">
+    <div className="min-h-screen bg-zinc-100 dark:bg-[#0c1017] text-zinc-800 dark:text-zinc-100 flex flex-col items-center justify-between p-4 transition-colors duration-300">
       <Header />
       <main className="w-full max-w-md flex-1 flex flex-col items-center justify-center relative">
         <PitchDisplay ref={pitchDisplayRef} />

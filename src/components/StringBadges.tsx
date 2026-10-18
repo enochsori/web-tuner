@@ -8,7 +8,6 @@ export function StringBadges() {
   const [playingFreq, setPlayingFreq] = useState<number | null>(null);
   const currentPreset = PRESETS[currentPresetId];
 
-  // 프리셋이 바뀌면 재생 중이던 기준음 정지
   useEffect(() => {
     tonePlayer.stop();
     setPlayingFreq(null);
@@ -16,8 +15,8 @@ export function StringBadges() {
 
   if (!currentPreset || currentPreset.notes.length === 0) return null;
 
-  const handleStringClick = (freq: number) => {
-    const isPlaying = tonePlayer.playTone(freq);
+  const handleStringClick = async (freq: number) => {
+    const isPlaying = await tonePlayer.playTone(freq);
     setPlayingFreq(isPlaying ? freq : null);
   };
 
@@ -33,28 +32,40 @@ export function StringBadges() {
               key={item.stringNumber}
               onClick={() => handleStringClick(item.freq)}
               title="클릭하여 기준음 청음 재생"
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center min-w-[54px] active:scale-95 cursor-pointer relative ${
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-300 flex flex-col items-center min-w-[56px] active:scale-95 cursor-pointer relative backdrop-blur-md ${
                 isPlaying
-                  ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-105'
+                  ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.5)] scale-105'
                   : isTarget
-                  ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.35)] scale-105 animate-pulse'
-                  : 'bg-zinc-900/90 text-zinc-400 border border-zinc-800/80 hover:border-zinc-700 hover:text-zinc-200'
+                  ? 'bg-gradient-to-b from-emerald-500/25 to-teal-500/10 text-emerald-300 border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)] scale-105'
+                  : 'bg-zinc-900/60 text-zinc-400 border border-zinc-800/90 hover:border-zinc-700/80 hover:bg-zinc-800/40'
               }`}
             >
-              <div className="flex items-center gap-0.5">
-                <span className={`text-[10px] font-semibold ${isPlaying ? 'text-amber-400' : isTarget ? 'text-emerald-400' : 'text-zinc-500'}`}>
+              <div className="flex items-center gap-1">
+                <span
+                  className={`text-[10px] font-mono tracking-tight ${
+                    isPlaying ? 'text-amber-400 font-bold' : isTarget ? 'text-emerald-400 font-bold' : 'text-zinc-500'
+                  }`}
+                >
                   {item.stringNumber}번
                 </span>
-                {isPlaying && <Volume2 className="w-2.5 h-2.5 text-amber-400 animate-bounce" />}
+                {isPlaying && <Volume2 className="w-2.5 h-2.5 text-amber-400 animate-pulse" />}
               </div>
-              <span className={`text-sm font-black ${isPlaying ? 'text-white' : isTarget ? 'text-white' : 'text-zinc-200'}`}>
+              <span
+                className={`text-sm font-black mt-0.5 tracking-tight ${
+                  isPlaying
+                    ? 'text-white'
+                    : isTarget
+                    ? 'text-white drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                    : 'text-zinc-300'
+                }`}
+              >
                 {item.name}
               </span>
             </button>
           );
         })}
       </div>
-      <span className="text-[10px] text-zinc-600 font-mono mt-2 tracking-wide">
+      <span className="text-[10px] text-zinc-500 font-mono mt-2 tracking-wide">
         줄 버튼을 누르면 청음용 기준음이 재생됩니다
       </span>
     </div>

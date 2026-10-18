@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import type { PitchData } from '../types/tuner';
 
 export interface PitchDisplayRef {
@@ -6,151 +6,215 @@ export interface PitchDisplayRef {
 }
 
 export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
-  const noteRef = useRef<HTMLHeadingElement>(null);
-  const octaveRef = useRef<HTMLSpanElement>(null);
-  const freqRef = useRef<HTMLSpanElement>(null);
-  const centsRef = useRef<HTMLSpanElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pitchRef = useRef<PitchData | null>(null);
+  const phaseRef = useRef<number[]>([0, 0, 0]);
+  const animIdRef = useRef<number | null>(null);
 
-  // 실시간 애니메이션용 ref
-  const pitchDataRef = useRef<PitchData | null>(null);
-  const offsetRef = useRef(0);
-  const lastTimeRef = useRef(performance.now());
-  const rafRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const ambientGlowRef = useRef<HTMLDivElement | null>(null);
+  const noteTextRef = useRef<HTMLSpanElement | null>(null);
+  const octaveTextRef = useRef<HTMLSpanElement | null>(null);
+  const freqTextRef = useRef<HTMLSpanElement | null>(null);
+  const centsBadgeRef = useRef<HTMLDivElement | null>(null);
+  const centsIndicatorRef = useRef<HTMLDivElement | null>(null);
 
   useImperativeHandle(ref, () => ({
-    update(data: PitchData | null) {
-      pitchDataRef.current = data;
+    update: (data: PitchData | null) => {
+      pitchRef.current = data;
 
-      if (!noteRef.current || !octaveRef.current || !freqRef.current || !centsRef.current) return;
-
-      if (!data) {
-        noteRef.current.textContent = '--';
-        noteRef.current.className = 'text-8xl sm:text-9xl font-black tracking-tighter text-zinc-700 transition-colors';
-        octaveRef.current.textContent = '';
-        freqRef.current.textContent = '00.0 Hz';
-        centsRef.current.textContent = '0 Cent';
-        centsRef.current.className = 'font-mono text-xs px-2 py-0.5 rounded font-bold bg-zinc-800 text-zinc-500';
-        return;
-      }
-
-      const boundedCent = Math.max(-50, Math.min(50, data.cents));
-      noteRef.current.textContent = data.note;
-      octaveRef.current.textContent = String(data.octave);
-      freqRef.current.textContent = `${data.frequency.toFixed(1)} Hz`;
-      centsRef.current.textContent = `${boundedCent >= 0 ? '+' : ''}${Math.round(boundedCent)} Cent`;
-
-      if (data.isInTune) {
-        noteRef.current.className = 'text-8xl sm:text-9xl font-black tracking-tighter text-emerald-400 drop-shadow-[0_0_40px_rgba(52,211,153,0.6)] transition-colors';
-        centsRef.current.className = 'font-mono text-xs px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_10px_rgba(52,211,153,0.3)]';
+      if (data) {
+        if (noteTextRef.current) noteTextRef.current.innerText = data.note;
+        if (octaveTextRef.current) octaveTextRef.current.innerText = String(data.octave);
+        if (freqTextRef.current) freqTextRef.current.innerText = `${data.frequency.toFixed(1)} Hz`;
+        if (centsBadgeRef.current) {
+          centsBadgeRef.current.innerText = `${data.cents > 0 ? '+' : ''}${data.cents} CENTS`;
+          centsBadgeRef.current.className = `px-3 py-1 rounded-lg border font-mono text-xs font-bold transition-all ${
+            data.isInTune
+              ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]'
+              : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+          }`;
+        }
+        if (centsIndicatorRef.current) {
+          const clamped = Math.max(-48, Math.min(48, data.cents));
+          centsIndicatorRef.current.style.left = `calc(50% + ${clamped}%)`;
+          centsIndicatorRef.current.style.opacity = '1';
+          centsIndicatorRef.current.className = `absolute top-0 bottom-0 w-2.5 rounded-full transition-all duration-75 ${
+            data.isInTune
+              ? 'bg-emerald-300 shadow-[0_0_10px_#6ee7b7]'
+              : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'
+          }`;
+        }
+        if (containerRef.current) {
+          containerRef.current.className = `w-full rounded-3xl p-[1.5px] transition-all duration-300 relative ${
+            data.isInTune
+              ? 'bg-gradient-to-b from-emerald-400 via-teal-500 to-emerald-600 shadow-[0_0_35px_rgba(52,211,153,0.35)]'
+              : 'bg-gradient-to-b from-cyan-500/50 via-zinc-800 to-zinc-900 shadow-[0_0_25px_rgba(6,182,212,0.18)]'
+          }`;
+        }
+        if (ambientGlowRef.current) {
+          ambientGlowRef.current.className = `absolute -inset-1 rounded-3xl opacity-20 blur-xl transition-all duration-300 pointer-events-none ${
+            data.isInTune ? 'bg-emerald-400' : 'bg-cyan-400'
+          }`;
+        }
       } else {
-        const isClose = Math.abs(boundedCent) <= 10;
-        noteRef.current.className = `text-8xl sm:text-9xl font-black tracking-tighter ${isClose ? 'text-amber-400' : 'text-zinc-200'} transition-colors`;
-        centsRef.current.className = 'font-mono text-xs px-2 py-0.5 rounded font-bold bg-zinc-800 text-zinc-300';
+        if (noteTextRef.current) noteTextRef.current.innerText = '--';
+        if (octaveTextRef.current) octaveTextRef.current.innerText = '';
+        if (freqTextRef.current) freqTextRef.current.innerText = '--.- Hz';
+        if (centsBadgeRef.current) {
+          centsBadgeRef.current.innerText = '0 CENTS';
+          centsBadgeRef.current.className =
+            'px-3 py-1 rounded-lg border font-mono text-xs font-bold bg-zinc-900/90 border-zinc-800 text-zinc-500';
+        }
+        if (centsIndicatorRef.current) {
+          centsIndicatorRef.current.style.opacity = '0';
+        }
+        if (containerRef.current) {
+          containerRef.current.className =
+            'w-full rounded-3xl p-[1.5px] transition-all duration-300 relative bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 shadow-lg';
+        }
+        if (ambientGlowRef.current) {
+          ambientGlowRef.current.className =
+            'absolute -inset-1 rounded-3xl opacity-0 blur-xl transition-all duration-300 pointer-events-none bg-transparent';
+        }
       }
     },
   }));
 
-  // 스트로브 Canvas 고성능 60fps 루프
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const render = (time: number) => {
-      const dt = (time - lastTimeRef.current) / 1000;
-      lastTimeRef.current = time;
-
-      const data = pitchDataRef.current;
+    const render = () => {
       const width = canvas.width;
       const height = canvas.height;
-
       ctx.clearRect(0, 0, width, height);
 
-      // 배경 그리드 가이드
-      ctx.fillStyle = '#0a0d14';
+      ctx.fillStyle = '#060a11';
       ctx.fillRect(0, 0, width, height);
 
-      if (data && data.frequency > 0) {
-        // Cents에 정비례하는 스트로브 회전 속도 (In-Tune일 때 0에 수렴하여 완전 정지)
-        const speed = (data.cents / 50) * 320; // 픽셀 이동 속도
-        offsetRef.current = (offsetRef.current + speed * dt) % 60;
+      const current = pitchRef.current;
+      const numTracks = 3;
+      const trackHeight = height / numTracks;
 
-        const isInTune = data.isInTune;
-        const mainColor = isInTune ? '#34d399' : Math.abs(data.cents) <= 10 ? '#fbbf24' : '#94a3b8';
-
-        // 3단 스트로브 트랙 렌더링 (Peterson 스타일 3단 디스크 패턴)
-        const tracks = [
-          { y: 8, h: 22, bandW: 24, mult: 1.0 },
-          { y: 34, h: 18, bandW: 16, mult: 0.75 },
-          { y: 56, h: 14, bandW: 12, mult: 0.5 },
-        ];
-
-        tracks.forEach((track) => {
-          ctx.fillStyle = mainColor;
-          const bandSpacing = track.bandW * 2;
-          const trackOffset = (offsetRef.current * track.mult) % bandSpacing;
-          const totalBands = Math.ceil(width / bandSpacing) + 3;
-
-          for (let i = -2; i < totalBands; i++) {
-            const x = i * bandSpacing + trackOffset;
-            ctx.fillRect(x, track.y, track.bandW, track.h);
+      if (!current) {
+        ctx.fillStyle = '#1e293b';
+        for (let t = 0; t < numTracks; t++) {
+          const y = t * trackHeight;
+          const bandCount = 12 * (t + 1);
+          const bandWidth = width / bandCount;
+          for (let i = 0; i < bandCount; i += 2) {
+            ctx.fillRect(i * bandWidth, y + 2, bandWidth, trackHeight - 4);
           }
-        });
-
-        // 중앙 타겟 정렬 바 & 조준선
-        ctx.fillStyle = isInTune ? '#10b981' : '#f59e0b';
-        ctx.shadowColor = isInTune ? 'rgba(52,211,153,0.9)' : 'rgba(245,158,11,0.6)';
-        ctx.shadowBlur = isInTune ? 14 : 6;
-        ctx.fillRect(width / 2 - 2, 0, 4, height);
-        ctx.shadowBlur = 0; // 초기화
+        }
       } else {
-        // 미입력 대기 상태 가이드 라인
-        ctx.fillStyle = '#27272a';
-        ctx.fillRect(width / 2 - 1, 0, 2, height);
+        const cents = current.cents;
+        const isInTune = current.isInTune;
+        const speed = cents * 0.035;
 
-        // 연한 눈금 표시
-        ctx.fillStyle = '#18181b';
-        for (let x = 20; x < width; x += 40) {
-          ctx.fillRect(x, height / 2 - 4, 2, 8);
+        for (let t = 0; t < numTracks; t++) {
+          const y = t * trackHeight;
+          const trackMultiplier = t + 1;
+          phaseRef.current[t] = (phaseRef.current[t] + speed * trackMultiplier) % (Math.PI * 2);
+
+          const bandCount = 10 * trackMultiplier;
+          const bandWidth = width / bandCount;
+          const offset = (phaseRef.current[t] / (Math.PI * 2)) * (bandWidth * 2);
+
+          ctx.fillStyle = isInTune ? '#34d399' : '#22d3ee';
+
+          for (let x = -bandWidth * 4 + offset; x < width + bandWidth * 4; x += bandWidth * 2) {
+            ctx.beginPath();
+            ctx.roundRect(x, y + 2, bandWidth, trackHeight - 4, 3);
+            ctx.fill();
+          }
         }
       }
 
-      rafRef.current = requestAnimationFrame(render);
+      animIdRef.current = requestAnimationFrame(render);
     };
 
-    rafRef.current = requestAnimationFrame(render);
+    render();
 
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (animIdRef.current) cancelAnimationFrame(animIdRef.current);
     };
   }, []);
 
   return (
-    <div className="w-full flex flex-col items-center justify-center relative">
-      {/* 음정 표시 */}
-      <div className="flex flex-col items-center mb-4">
-        <div className="flex items-baseline justify-center">
-          <h1 ref={noteRef} className="text-8xl sm:text-9xl font-black tracking-tighter text-zinc-700 transition-colors">--</h1>
-          <span ref={octaveRef} className="text-3xl sm:text-4xl font-bold text-zinc-500 ml-1"></span>
-        </div>
-        <div className="flex items-center gap-2 mt-1">
-          <span ref={freqRef} className="font-mono text-sm text-zinc-400 font-semibold tracking-wider">00.0 Hz</span>
-          <span ref={centsRef} className="font-mono text-xs px-2 py-0.5 rounded font-bold bg-zinc-800 text-zinc-500">0 Cent</span>
-        </div>
-      </div>
+    <div className="w-full max-w-md flex flex-col items-center mt-2">
+      <div
+        ref={containerRef}
+        className="w-full rounded-3xl p-[1.5px] transition-all duration-300 relative bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 shadow-lg"
+      >
+        <div
+          ref={ambientGlowRef}
+          className="absolute -inset-1 rounded-3xl opacity-0 blur-xl transition-all duration-300 pointer-events-none bg-transparent"
+        />
 
-      {/* 대형 프로 스트로브 디스크 디스플레이 */}
-      <div className="w-full max-w-[340px] flex flex-col items-center">
-        <div className="w-full h-20 bg-zinc-950 border border-zinc-800/90 rounded-2xl overflow-hidden relative shadow-[inset_0_2px_12px_rgba(0,0,0,0.8)] flex items-center justify-center">
-          <canvas ref={canvasRef} width={340} height={80} className="w-full h-full" />
-          
-          {/* 눈금 가이드 오버레이 */}
-          <div className="absolute inset-x-3 bottom-1 flex justify-between text-[9px] font-mono text-zinc-600 pointer-events-none select-none">
-            <span>FLAT ◀</span>
-            <span className="text-zinc-500 font-bold">STROBE TARGET</span>
-            <span>▶ SHARP</span>
+        <div className="relative w-full bg-[#0a0f16]/95 backdrop-blur-xl rounded-[23px] p-6 flex flex-col items-center overflow-hidden border border-white/5">
+          {/* 상단 센트/주파수 정보 헤더 */}
+          <div className="w-full flex justify-between items-center mb-4">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900/90 border border-zinc-800">
+              <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">FREQ</span>
+              <span ref={freqTextRef} className="text-xs font-mono font-bold text-zinc-200">
+                --.- Hz
+              </span>
+            </div>
+
+            <div
+              ref={centsBadgeRef}
+              className="px-3 py-1 rounded-lg border font-mono text-xs font-bold bg-zinc-900/90 border-zinc-800 text-zinc-500"
+            >
+              0 CENTS
+            </div>
+          </div>
+
+          {/* 스트로브 캔버스 */}
+          <div className="relative w-full flex justify-center my-2">
+            <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-[2px] bg-gradient-to-b from-emerald-400/80 via-emerald-300 to-emerald-400/80 shadow-[0_0_8px_#34d399] z-10 pointer-events-none" />
+            <canvas
+              ref={canvasRef}
+              width={340}
+              height={100}
+              className="w-full h-[100px] rounded-xl border border-zinc-800/80 bg-[#05080d]"
+            />
+          </div>
+
+          {/* 메인 음정 텍스트 */}
+          <div className="relative mt-4 flex items-baseline justify-center">
+            <span
+              ref={noteTextRef}
+              className="text-7xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-cyan-200 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+            >
+              --
+            </span>
+            <span
+              ref={octaveTextRef}
+              className="text-2xl font-black ml-1.5 text-cyan-400"
+            />
+          </div>
+
+          {/* 하단 센트 룰러 바 */}
+          <div className="w-full mt-5">
+            <div className="relative w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+              <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 bg-emerald-500 shadow-[0_0_6px_#10b981] z-10" />
+              <div
+                ref={centsIndicatorRef}
+                className="absolute top-0 bottom-0 w-2.5 rounded-full transition-all duration-75 opacity-0 bg-cyan-400 shadow-[0_0_8px_#22d3ee]"
+                style={{
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[9px] font-mono text-zinc-500 mt-1 px-1">
+              <span>-50</span>
+              <span className="text-emerald-400 font-bold">PERFECT</span>
+              <span>+50</span>
+            </div>
           </div>
         </div>
       </div>

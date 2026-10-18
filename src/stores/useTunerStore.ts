@@ -108,28 +108,65 @@ export const PRESETS: Record<string, TuningPreset> = {
   chromatic: { id: 'chromatic', label: '크로매틱', notes: [] },
 };
 
+export type ThemeMode = 'dark' | 'light';
+
 interface TunerState {
   isActive: boolean;
   baseA4: number;
   currentPresetId: string;
   soundEnabled: boolean;
   activeStringNumber: number | null;
+  theme: ThemeMode;
   setIsActive: (active: boolean) => void;
   setBaseA4: (freq: number) => void;
   setCurrentPresetId: (id: string) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setActiveStringNumber: (num: number | null) => void;
+  toggleTheme: () => void;
 }
 
-export const useTunerStore = create<TunerState>((set) => ({
+const getInitialTheme = (): ThemeMode => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('tuner-theme') as ThemeMode;
+    if (saved === 'dark' || saved === 'light') return saved;
+  }
+  return 'dark';
+};
+
+const initialTheme = getInitialTheme();
+
+if (typeof document !== 'undefined') {
+  if (initialTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
+
+export const useTunerStore = create<TunerState>((set, get) => ({
   isActive: false,
   baseA4: 440,
   currentPresetId: 'guitar_std',
   soundEnabled: true,
   activeStringNumber: null,
+  theme: initialTheme,
+
   setIsActive: (active) => set({ isActive: active }),
   setBaseA4: (freq) => set({ baseA4: freq }),
   setCurrentPresetId: (id) => set({ currentPresetId: id, activeStringNumber: null }),
   setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
   setActiveStringNumber: (num) => set({ activeStringNumber: num }),
+
+  toggleTheme: () => {
+    const nextTheme: ThemeMode = get().theme === 'dark' ? 'light' : 'dark';
+    if (typeof document !== 'undefined') {
+      if (nextTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      localStorage.setItem('tuner-theme', nextTheme);
+    }
+    set({ theme: nextTheme });
+  },
 }));
