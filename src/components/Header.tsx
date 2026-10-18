@@ -8,7 +8,7 @@ export function Header() {
     <header className="w-full max-w-md flex justify-between items-center py-2 border-b border-zinc-800/80">
       <div className="flex items-center gap-2">
         <div className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`} />
-        <span className="text-xs font-bold tracking-wider text-zinc-400 uppercase">STROBE DSP TUNER</span>
+        <span className="text-xs font-bold tracking-wider text-zinc-400 uppercase">STROBE TUNER</span>
       </div>
 
       <div className="flex items-center gap-2">
