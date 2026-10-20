@@ -14,7 +14,8 @@ export default function App() {
     pitchDisplayRef.current?.update(data);
   }, []);
 
-  useAudioTuner();
+  // 캔버스 디스플레이 직접 갱신을 위해 handlePitchUpdate 콜백 전달
+  useAudioTuner(handlePitchUpdate);
 
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-[#0c1017] text-zinc-800 dark:text-zinc-100 flex flex-col items-center justify-between p-4 transition-colors duration-300">
