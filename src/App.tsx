@@ -14,7 +14,7 @@ export default function App() {
     pitchDisplayRef.current?.update(data);
   }, []);
 
-  useAudioTuner(handlePitchUpdate);
+  useAudioTuner();
 
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-[#0c1017] text-zinc-800 dark:text-zinc-100 flex flex-col items-center justify-between p-4 transition-colors duration-300">
