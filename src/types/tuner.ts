@@ -1,14 +1,14 @@
 export interface PitchData {
     frequency: number;
     note: string;
-    noteName?: string; // 하위 호환 및 신규 디스플레이용
+    noteName: string;
     octave: number | null;
     cents: number;
     clarity?: number;
     isInTune: boolean;
-    isHolding?: boolean; // 1.2초 서스테인 홀드 디밍 상태 플래그
-    targetStringNumber?: number | null; // 현재 조율 중으로 매칭된 현 번호 (예: 6, 5, 4 등)
-    activeStringNumber?: number | null;
+    isHolding: boolean;
+    activeStringNumber: number | null; // 물음표(?) 제거하여 number | null 로 통일
+    targetStringNumber?: number | null;
   }
   
   export interface PresetNote {

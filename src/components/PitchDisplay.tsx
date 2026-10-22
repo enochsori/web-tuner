@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
-import { useTunerStore, PRESETS } from '../stores/useTunerStore';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import type { PitchData } from '../types/tuner';
 
 export interface PitchDisplayRef {
@@ -7,124 +6,81 @@ export interface PitchDisplayRef {
 }
 
 export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
-  const { currentPresetId, tunedStrings } = useTunerStore();
-  const [isAllTuned, setIsAllTuned] = useState(false);
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pitchRef = useRef<PitchData | null>(null);
+  const phaseRef = useRef<number[]>([0, 0, 0]);
   const animIdRef = useRef<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const ambientGlowRef = useRef<HTMLDivElement | null>(null);
-  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
   const noteTextRef = useRef<HTMLSpanElement | null>(null);
   const octaveTextRef = useRef<HTMLSpanElement | null>(null);
   const freqTextRef = useRef<HTMLSpanElement | null>(null);
   const centsBadgeRef = useRef<HTMLDivElement | null>(null);
-
-  // 모든 현 조율 완료 시 세레모니
-  useEffect(() => {
-    const currentPreset = PRESETS[currentPresetId];
-    const totalStrings = currentPreset?.notes?.length || 0;
-
-    if (totalStrings > 0 && tunedStrings.length >= totalStrings) {
-      setIsAllTuned(true);
-      const timer = setTimeout(() => {
-        setIsAllTuned(false);
-      }, 3500);
-      return () => clearTimeout(timer);
-    } else {
-      setIsAllTuned(false);
-    }
-  }, [tunedStrings, currentPresetId]);
+  const centsIndicatorRef = useRef<HTMLDivElement | null>(null);
 
   useImperativeHandle(ref, () => ({
     update: (data: PitchData | null) => {
       pitchRef.current = data;
 
       if (data) {
-        const isHolding = data.isHolding ?? false;
-        const isInTune = data.isInTune ?? false;
-
-        if (contentWrapperRef.current) {
-          contentWrapperRef.current.style.opacity = isHolding ? '0.6' : '1';
-          contentWrapperRef.current.style.transition = 'opacity 0.2s ease-out';
-        }
-
-        if (noteTextRef.current) {
-          noteTextRef.current.innerText = data.note || data.noteName || '--';
-          noteTextRef.current.className = `text-7xl font-black font-mono tracking-tighter transition-all duration-150 ${
-            isInTune
-              ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.9)]'
-              : 'text-zinc-100 drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]'
-          }`;
-        }
-
-        if (octaveTextRef.current) {
-          octaveTextRef.current.innerText = data.octave !== null ? String(data.octave) : '';
-          octaveTextRef.current.className = `text-2xl font-black ml-1.5 ${
-            isInTune ? 'text-emerald-400' : 'text-zinc-500'
-          }`;
-        }
-
-        if (freqTextRef.current) {
-          freqTextRef.current.innerText = `${data.frequency.toFixed(1)} Hz`;
-        }
-
+        if (noteTextRef.current) noteTextRef.current.innerText = data.note;
+        if (octaveTextRef.current) octaveTextRef.current.innerText = String(data.octave);
+        if (freqTextRef.current) freqTextRef.current.innerText = `${data.frequency.toFixed(1)} Hz`;
         if (centsBadgeRef.current) {
-          const sign = data.cents > 0 ? '+' : '';
-          centsBadgeRef.current.innerText = `${sign}${data.cents.toFixed(1)} C`;
-          centsBadgeRef.current.className = `px-2.5 py-0.5 rounded-md border font-mono text-[11px] font-bold transition-all ${
-            isInTune
-              ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.5)]'
-              : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+          centsBadgeRef.current.innerText = `${data.cents > 0 ? '+' : ''}${data.cents} CENTS`;
+          centsBadgeRef.current.className = `px-3 py-1 rounded-lg border font-mono text-xs font-bold transition-all ${
+            data.isInTune
+              ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.4)]'
+              : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
           }`;
         }
-
-        if (containerRef.current && !isAllTuned) {
-          containerRef.current.className = `w-full rounded-2xl p-[2px] transition-all duration-300 relative ${
-            isInTune
-              ? 'bg-gradient-to-b from-emerald-500 via-zinc-800 to-zinc-950 shadow-[0_0_30px_rgba(16,185,129,0.3)]'
-              : 'bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-950 shadow-xl'
+        if (centsIndicatorRef.current) {
+          const clamped = Math.max(-48, Math.min(48, data.cents));
+          centsIndicatorRef.current.style.left = `calc(50% + ${clamped}%)`;
+          centsIndicatorRef.current.style.opacity = '1';
+          centsIndicatorRef.current.className = `absolute top-0 bottom-0 w-2.5 rounded-full transition-all duration-75 ${
+            data.isInTune
+              ? 'bg-emerald-300 shadow-[0_0_10px_#6ee7b7]'
+              : 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]'
           }`;
         }
-
-        if (ambientGlowRef.current && !isAllTuned) {
-          ambientGlowRef.current.className = `absolute -inset-1 rounded-2xl blur-xl transition-all duration-300 pointer-events-none ${
-            isInTune ? 'opacity-30 bg-emerald-500' : 'opacity-0 bg-transparent'
+        if (containerRef.current) {
+          containerRef.current.className = `w-full rounded-3xl p-[1.5px] transition-all duration-300 relative ${
+            data.isInTune
+              ? 'bg-gradient-to-b from-emerald-400 via-teal-500 to-emerald-600 shadow-[0_0_35px_rgba(52,211,153,0.35)]'
+              : 'bg-gradient-to-b from-cyan-500/50 via-zinc-800 to-zinc-900 shadow-[0_0_25px_rgba(6,182,212,0.18)]'
+          }`;
+        }
+        if (ambientGlowRef.current) {
+          ambientGlowRef.current.className = `absolute -inset-1 rounded-3xl opacity-20 blur-xl transition-all duration-300 pointer-events-none ${
+            data.isInTune ? 'bg-emerald-400' : 'bg-cyan-400'
           }`;
         }
       } else {
-        if (contentWrapperRef.current) {
-          contentWrapperRef.current.style.opacity = '1';
-        }
-        if (noteTextRef.current) {
-          noteTextRef.current.innerText = '--';
-          noteTextRef.current.className =
-            'text-7xl font-black font-mono tracking-tighter text-zinc-600';
-        }
+        if (noteTextRef.current) noteTextRef.current.innerText = '--';
         if (octaveTextRef.current) octaveTextRef.current.innerText = '';
         if (freqTextRef.current) freqTextRef.current.innerText = '--.- Hz';
-
         if (centsBadgeRef.current) {
-          centsBadgeRef.current.innerText = '0.0 C';
+          centsBadgeRef.current.innerText = '0 CENTS';
           centsBadgeRef.current.className =
-            'px-2.5 py-0.5 rounded-md border font-mono text-[11px] font-bold bg-zinc-900 border-zinc-800 text-zinc-600';
+            'px-3 py-1 rounded-lg border font-mono text-xs font-bold bg-zinc-900/90 border-zinc-800 text-zinc-500';
         }
-
-        if (containerRef.current && !isAllTuned) {
+        if (centsIndicatorRef.current) {
+          centsIndicatorRef.current.style.opacity = '0';
+        }
+        if (containerRef.current) {
           containerRef.current.className =
-            'w-full rounded-2xl p-[2px] transition-all duration-300 relative bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 shadow-xl';
+            'w-full rounded-3xl p-[1.5px] transition-all duration-300 relative bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 shadow-lg';
         }
-        if (ambientGlowRef.current && !isAllTuned) {
+        if (ambientGlowRef.current) {
           ambientGlowRef.current.className =
-            'absolute -inset-1 rounded-2xl opacity-0 blur-xl transition-all duration-300 pointer-events-none bg-transparent';
+            'absolute -inset-1 rounded-3xl opacity-0 blur-xl transition-all duration-300 pointer-events-none bg-transparent';
         }
       }
     },
   }));
 
-  // PolyTune 스타일 고휘도 수직 LED 미터 캔버스 렌더러
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -136,90 +92,46 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
       const height = canvas.height;
       ctx.clearRect(0, 0, width, height);
 
-      // 하드웨어 아크릴 패널 배경
-      ctx.fillStyle = '#05070a';
+      ctx.fillStyle = '#060a11';
       ctx.fillRect(0, 0, width, height);
 
       const current = pitchRef.current;
-      const totalColumns = 25; // 중앙(12) 기준 좌우 12열씩
-      const colWidth = 10;
-      const colGap = 3;
-      const totalMeterWidth = totalColumns * colWidth + (totalColumns - 1) * colGap;
-      const startX = (width - totalMeterWidth) / 2;
+      const numTracks = 3;
+      const trackHeight = height / numTracks;
 
-      const numRows = 7;
-      const rowHeight = 7;
-      const rowGap = 3;
-      const meterTop = 14;
-
-      const centerCol = 12; // 0센트 중앙 인덱스
-      const cents = current ? current.cents : 0;
-      const isInTune = current ? current.isInTune : false;
-
-      // 센트(-50 ~ +50)를 열 오프셋(-12 ~ +12)으로 매핑
-      const activeColOffset = current
-        ? Math.round(Math.max(-12, Math.min(12, cents / 4.0)))
-        : 0;
-
-      for (let c = 0; c < totalColumns; c++) {
-        const x = startX + c * (colWidth + colGap);
-        const isCenter = c === centerCol || c === centerCol - 1;
-
-        for (let r = 0; r < numRows; r++) {
-          const y = meterTop + r * (rowHeight + rowGap);
-
-          // LED 꺼짐 기본 상태 (어두운 회색 슬롯)
-          let ledColor = '#121824';
-          let isLit = false;
-
-          if (current) {
-            if (isInTune) {
-              // 정음일 때: 중앙 2개 열 전체가 밝은 에메랄드 그린 점등
-              if (isCenter) {
-                ledColor = '#10b981';
-                isLit = true;
-              }
-            } else {
-              // 피치가 빗나갔을 때: 해당 오프셋 열에 LED 바 표시
-              const targetCol = centerCol + activeColOffset;
-              const distanceToTarget = Math.abs(c - targetCol);
-
-              if (distanceToTarget === 0) {
-                // 주 바늘 열 (음 높이에 따라 주황/빨강)
-                ledColor = activeColOffset < 0 ? '#f97316' : '#ef4444';
-                isLit = true;
-              } else if (distanceToTarget === 1) {
-                // 인접 열 미세 번짐 효과
-                ledColor = activeColOffset < 0 ? 'rgba(249, 115, 22, 0.35)' : 'rgba(239, 68, 68, 0.35)';
-                isLit = true;
-              }
-            }
+      if (!current) {
+        ctx.fillStyle = '#1e293b';
+        for (let t = 0; t < numTracks; t++) {
+          const y = t * trackHeight;
+          const bandCount = 12 * (t + 1);
+          const bandWidth = width / bandCount;
+          for (let i = 0; i < bandCount; i += 2) {
+            ctx.fillRect(i * bandWidth, y + 2, bandWidth, trackHeight - 4);
           }
+        }
+      } else {
+        const cents = current.cents;
+        const isInTune = current.isInTune;
+        const speed = cents * 0.035;
 
-          // LED 도트 그리기
-          ctx.beginPath();
-          ctx.roundRect(x, y, colWidth, rowHeight, 1.5);
-          ctx.fillStyle = ledColor;
-          ctx.fill();
+        for (let t = 0; t < numTracks; t++) {
+          const y = t * trackHeight;
+          const trackMultiplier = t + 1;
+          phaseRef.current[t] = (phaseRef.current[t] + speed * trackMultiplier) % (Math.PI * 2);
 
-          // 점등된 LED 글로우 효과
-          if (isLit) {
-            ctx.shadowColor = ledColor;
-            ctx.shadowBlur = isInTune ? 8 : 4;
+          const bandCount = 10 * trackMultiplier;
+          const bandWidth = width / bandCount;
+          const offset = (phaseRef.current[t] / (Math.PI * 2)) * (bandWidth * 2);
+
+          ctx.fillStyle = isInTune ? '#34d399' : '#22d3ee';
+
+          for (let x = -bandWidth * 4 + offset; x < width + bandWidth * 4; x += bandWidth * 2) {
+            ctx.beginPath();
+            ctx.roundRect(x, y + 2, bandWidth, trackHeight - 4, 3);
             ctx.fill();
-            ctx.shadowBlur = 0;
           }
         }
       }
-
-      // 중앙 타겟 마커 가이드라인
-      const centerGuideX = startX + centerCol * (colWidth + colGap) - colGap / 2;
-      ctx.strokeStyle = isInTune ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(centerGuideX, meterTop - 4);
-      ctx.lineTo(centerGuideX, meterTop + numRows * (rowHeight + rowGap) + 2);
-      ctx.stroke();
 
       animIdRef.current = requestAnimationFrame(render);
     };
@@ -235,72 +147,74 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
     <div className="w-full max-w-md flex flex-col items-center mt-2">
       <div
         ref={containerRef}
-        className={`w-full rounded-2xl p-[2px] transition-all duration-500 relative ${
-          isAllTuned
-            ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.5)] animate-pulse'
-            : 'bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 shadow-2xl'
-        }`}
+        className="w-full rounded-3xl p-[1.5px] transition-all duration-300 relative bg-gradient-to-b from-zinc-800 via-zinc-900 to-zinc-950 shadow-lg"
       >
         <div
           ref={ambientGlowRef}
-          className={`absolute -inset-1 rounded-2xl blur-xl transition-all duration-500 pointer-events-none ${
-            isAllTuned ? 'opacity-35 bg-emerald-400' : 'opacity-0 bg-transparent'
-          }`}
+          className="absolute -inset-1 rounded-3xl opacity-0 blur-xl transition-all duration-300 pointer-events-none bg-transparent"
         />
 
-        {/* 폴리튠 페달 섀시 내부 패널 */}
-        <div
-          ref={contentWrapperRef}
-          className="relative w-full bg-[#0a0d14] rounded-[14px] p-5 flex flex-col items-center overflow-hidden border border-zinc-800/80 shadow-inner"
-        >
-          {/* 상단 기기 인디케이터 헤더 */}
-          <div className="w-full flex justify-between items-center mb-3">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0f141f] border border-zinc-800">
-              <span className="text-[9px] font-mono font-bold text-zinc-500 tracking-wider">REF</span>
-              <span ref={freqTextRef} className="text-xs font-mono font-bold text-zinc-300">
+        <div className="relative w-full bg-[#0a0f16]/95 backdrop-blur-xl rounded-[23px] p-6 flex flex-col items-center overflow-hidden border border-white/5">
+          {/* 상단 센트/주파수 정보 헤더 */}
+          <div className="w-full flex justify-between items-center mb-4">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900/90 border border-zinc-800">
+              <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">FREQ</span>
+              <span ref={freqTextRef} className="text-xs font-mono font-bold text-zinc-200">
                 --.- Hz
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div
-                ref={centsBadgeRef}
-                className="px-2.5 py-0.5 rounded border font-mono text-[11px] font-bold bg-zinc-900 border-zinc-800 text-zinc-600"
-              >
-                0.0 C
-              </div>
+            <div
+              ref={centsBadgeRef}
+              className="px-3 py-1 rounded-lg border font-mono text-xs font-bold bg-zinc-900/90 border-zinc-800 text-zinc-500"
+            >
+              0 CENTS
             </div>
           </div>
 
-          {/* PolyTune 수직 LED 매트릭스 캔버스 */}
-          <div className="relative w-full flex justify-center my-1 bg-[#05070a] rounded-lg p-1 border border-zinc-900">
+          {/* 스트로브 캔버스 */}
+          <div className="relative w-full flex justify-center my-2">
+            <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-[2px] bg-gradient-to-b from-emerald-400/80 via-emerald-300 to-emerald-400/80 shadow-[0_0_8px_#34d399] z-10 pointer-events-none" />
             <canvas
               ref={canvasRef}
               width={340}
-              height={90}
-              className="w-full h-[90px]"
+              height={100}
+              className="w-full h-[100px] rounded-xl border border-zinc-800/80 bg-[#05080d]"
             />
           </div>
 
-          {/* 메인 디지털 노트 디스플레이 */}
-          <div className="relative mt-3 mb-1 flex items-baseline justify-center">
+          {/* 메인 음정 텍스트 */}
+          <div className="relative mt-4 flex items-baseline justify-center">
             <span
               ref={noteTextRef}
-              className="text-7xl font-black font-mono tracking-tighter text-zinc-600"
+              className="text-7xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-cyan-200 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]"
             >
               --
             </span>
             <span
               ref={octaveTextRef}
-              className="text-2xl font-black ml-1.5 text-zinc-600"
+              className="text-2xl font-black ml-1.5 text-cyan-400"
             />
           </div>
 
-          {/* 하단 미터 눈금 가이드 */}
-          <div className="w-full flex justify-between text-[10px] font-mono font-bold text-zinc-600 px-3 mt-1">
-            <span className="text-amber-500/70 font-mono">b FLAT</span>
-            <span className="text-emerald-500 font-mono tracking-wider font-extrabold">IN TUNE</span>
-            <span className="text-rose-500/70 font-mono"># SHARP</span>
+          {/* 하단 센트 룰러 바 */}
+          <div className="w-full mt-5">
+            <div className="relative w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+              <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-1 bg-emerald-500 shadow-[0_0_6px_#10b981] z-10" />
+              <div
+                ref={centsIndicatorRef}
+                className="absolute top-0 bottom-0 w-2.5 rounded-full transition-all duration-75 opacity-0 bg-cyan-400 shadow-[0_0_8px_#22d3ee]"
+                style={{
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[9px] font-mono text-zinc-500 mt-1 px-1">
+              <span>-50</span>
+              <span className="text-emerald-400 font-bold">PERFECT</span>
+              <span>+50</span>
+            </div>
           </div>
         </div>
       </div>
