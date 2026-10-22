@@ -124,7 +124,7 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
     },
   }));
 
-  // PolyTune 스타일 25열 수직 LED 매트릭스 렌더러
+  // PolyTune 스타일 완벽 대칭 수직 26열 LED 매트릭스 렌더러
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -136,34 +136,36 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
       const height = canvas.height;
       ctx.clearRect(0, 0, width, height);
 
-      // 하드웨어 아크릴 패널 배경
+      // 패널 배경
       ctx.fillStyle = '#05070a';
       ctx.fillRect(0, 0, width, height);
 
       const current = pitchRef.current;
-      const totalColumns = 25; // 중앙(12) 기준 좌우 12열씩
-      const colWidth = 10;
+      const totalColumns = 26; // 좌 13열 + 우 13열 완벽 좌우 대칭
+      const colWidth = 9;
       const colGap = 3;
       const totalMeterWidth = totalColumns * colWidth + (totalColumns - 1) * colGap;
-      const startX = (width - totalMeterWidth) / 2;
+      const startX = Math.round((width - totalMeterWidth) / 2);
 
       const numRows = 7;
       const rowHeight = 7;
       const rowGap = 3;
       const meterTop = 14;
 
-      const centerCol = 12; // 0센트 중앙 인덱스
+      const centerLeftCol = 12;
+      const centerRightCol = 13;
+      const exactCenterX = Math.round(width / 2);
+
       const cents = current ? current.cents : 0;
       const isInTune = current ? current.isInTune : false;
 
-      // 센트(-50 ~ +50)를 열 오프셋(-12 ~ +12)으로 매핑
       const activeColOffset = current
         ? Math.round(Math.max(-12, Math.min(12, cents / 4.0)))
         : 0;
 
       for (let c = 0; c < totalColumns; c++) {
         const x = startX + c * (colWidth + colGap);
-        const isCenter = c === centerCol || c === centerCol - 1;
+        const isCenterCol = c === centerLeftCol || c === centerRightCol;
 
         for (let r = 0; r < numRows; r++) {
           const y = meterTop + r * (rowHeight + rowGap);
@@ -173,18 +175,22 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
 
           if (current) {
             if (isInTune) {
-              if (isCenter) {
+              if (isCenterCol) {
                 ledColor = '#10b981';
                 isLit = true;
               }
             } else {
-              const targetCol = centerCol + activeColOffset;
-              const distanceToTarget = Math.abs(c - targetCol);
+              const targetCol =
+                activeColOffset < 0
+                  ? centerLeftCol + activeColOffset + 1
+                  : centerRightCol + activeColOffset - 1;
 
-              if (distanceToTarget === 0) {
+              const distance = Math.abs(c - targetCol);
+
+              if (distance === 0) {
                 ledColor = activeColOffset < 0 ? '#f97316' : '#ef4444';
                 isLit = true;
-              } else if (distanceToTarget === 1) {
+              } else if (distance === 1) {
                 ledColor =
                   activeColOffset < 0
                     ? 'rgba(249, 115, 22, 0.35)'
@@ -208,13 +214,12 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
         }
       }
 
-      // 중앙 가이드라인
-      const centerGuideX = startX + centerCol * (colWidth + colGap) - colGap / 2;
-      ctx.strokeStyle = isInTune ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)';
+      // 정중앙 가이드선 (중앙 2열 사이의 정밀 0센트 기준선)
+      ctx.strokeStyle = isInTune ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.2)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(centerGuideX, meterTop - 4);
-      ctx.lineTo(centerGuideX, meterTop + numRows * (rowHeight + rowGap) + 2);
+      ctx.moveTo(exactCenterX, meterTop - 4);
+      ctx.lineTo(exactCenterX, meterTop + numRows * (rowHeight + rowGap) + 4);
       ctx.stroke();
 
       animIdRef.current = requestAnimationFrame(render);
@@ -244,7 +249,6 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
           }`}
         />
 
-        {/* 페달 패널 프레임 */}
         <div
           ref={contentWrapperRef}
           className="relative w-full bg-[#0a0d14] rounded-[14px] p-5 flex flex-col items-center overflow-hidden border border-zinc-800/80 shadow-inner"
@@ -266,7 +270,7 @@ export const PitchDisplay = forwardRef<PitchDisplayRef>((_, ref) => {
             </div>
           </div>
 
-          {/* PolyTune 25열 수직 LED 미터 */}
+          {/* PolyTune 26열 수직 LED 미터 */}
           <div className="relative w-full flex justify-center my-1 bg-[#05070a] rounded-lg p-1 border border-zinc-900">
             <canvas
               ref={canvasRef}
